@@ -285,6 +285,7 @@ def run_once(
     project_filter: str | None,
     include_unnamed: bool,
     verbose: bool,
+    exclude_labels: set[str] | None = None,
 ) -> dict:
     records = discover_terminals(project_filter)
     if not records:
@@ -308,6 +309,8 @@ def run_once(
     for r in records:
         label = r["label"]
         if not include_unnamed and label.startswith("pid"):
+            continue
+        if exclude_labels and label in exclude_labels:
             continue
 
         classified, text, info = classify(r["session"])
@@ -433,13 +436,23 @@ def main():
         "--include-unnamed", action="store_true",
         help="include sessions you haven't /renamed (labeled pid<N>)",
     )
+    ap.add_argument(
+        "--exclude", type=str, default=None,
+        help="comma-separated labels to exclude from output (e.g. 'N,9')",
+    )
     ap.add_argument("--quiet", action="store_true", help="suppress per-cycle stdout")
     args = ap.parse_args()
+
+    exclude_labels = (
+        {x.strip() for x in args.exclude.split(",") if x.strip()}
+        if args.exclude else None
+    )
 
     if not args.watch:
         run_once(
             args.out, args.status, args.state,
             args.project, args.include_unnamed, not args.quiet,
+            exclude_labels,
         )
         return
 
@@ -454,6 +467,7 @@ def main():
             run_once(
                 args.out, args.status, args.state,
                 args.project, args.include_unnamed, not args.quiet,
+                exclude_labels,
             )
             time.sleep(args.interval)
     except KeyboardInterrupt:
